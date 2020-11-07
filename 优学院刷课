@@ -1,0 +1,44 @@
+# 作者 by 夕迹
+# QQ: 719893361
+
+import random
+import base64
+import json
+import os
+
+for i in range(3):
+    try:
+        import requests
+        from Cryptodome.Cipher import DES
+        from Cryptodome.Util import Padding
+    except ModuleNotFoundError:
+        os.system('pip3 install pycryptodomex')
+        os.system('pip3 install requests')
+    else:
+        break
+
+WINDOWS_WIDTH = os.get_terminal_size().columns
+
+HEADERS = {
+    'Authorization': None
+}
+
+
+def login():
+    while 1:
+        username = input('请输入用户名: ')
+        password = input('请输入密码: ')
+        reg = requests.post('https://www.ulearning.cn/umooc/user/login.do', data={
+            'name': username,
+            'passwd': password
+        }, allow_redirects=False)
+        if 'token' in reg.cookies:
+            HEADERS['Authorization'] = reg.cookies.get('token')
+            print('登录成功')
+            return
+        else:
+            print('登录失败, 请手动登录官网检查账号状态')
+
+
+def encryption(data):
+    crypt = DES.new(b'12345678', DES.MODE_ECB
