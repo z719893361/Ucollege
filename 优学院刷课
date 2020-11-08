@@ -62,7 +62,6 @@ def learn():
     res = requests.get(
         'https://courseapi.ulearning.cn/courses/students?keyword=&publishStatus=1&type=1&pn=1&ps=15&lang=zh',
         headers=HEADERS)
-    print(res.text)
     courseList = []
     print('-' * WINDOWS_WIDTH)
     for i, course in enumerate(res.json().get('courseList')):
@@ -90,7 +89,7 @@ def learn():
         print('专题ID: %s\t%s' % (chapter.get('nodeid'), chapter.get('nodetitle')))
         pageStudyRecordDTOList = []
         for item in chapter.get('items'):
-            print('\t分节ID: %s\t%s' % (item.get('itemid'), item.get('title')))
+            print('\t章节ID: %s\t%s' % (item.get('itemid'), item.get('title')))
             data['itemid'] = item.get('itemid')
             for coursepage in item.get('coursepages'):
                 # 打印文章标题
@@ -99,7 +98,7 @@ def learn():
                     {
                         "pageid": coursepage.get('relationid'),
                         "complete": 1,
-                        "studyTime": 4000,
+                        "studyTime": random.randint(400, 800),
                         "score": 100,
                         "answerTime": 1,
                         "submitTimes": 0,
