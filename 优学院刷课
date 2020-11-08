@@ -52,15 +52,16 @@ def login():
 def encryption(data):
     crypt = DES.new(b'12345678', DES.MODE_ECB)
     content = json.dumps(data, separators=(',', ':'))
-    content = Padding.pad(content.encode('utf8'), 16, 'pkcs7')
+    content = Padding.pad(content.encode('utf8'), 8, 'pkcs7')
     content = crypt.encrypt(content)
     content = base64.b64encode(content)
     return content
 
 
 def learn():
-    res = requests.get('https://courseapi.ulearning.cn/courses/students?keyword=&publishStatus=1&type=1&pn=1&ps=15&lang=zh',
-                       headers=HEADERS)
+    res = requests.get(
+        'https://courseapi.ulearning.cn/courses/students?keyword=&publishStatus=1&type=1&pn=1&ps=15&lang=zh',
+        headers=HEADERS)
     print(res.text)
     courseList = []
     print('-' * WINDOWS_WIDTH)
@@ -79,8 +80,9 @@ def learn():
         "score": 100,
         "pageStudyRecordDTOList": []
     }
-    reg = requests.get('https://api.ulearning.cn/course/stu/23138/directory?classId=%d' % courseList[int(input('请输入需要刷课的序号: '))],
-                       headers=HEADERS)
+    reg = requests.get(
+        'https://api.ulearning.cn/course/stu/23138/directory?classId=%d' % courseList[int(input('请输入需要刷课的序号: '))],
+        headers=HEADERS)
     # 循环遍历JSON内容
     for i, chapter in enumerate(reg.json()['chapters']):
         print('-' * WINDOWS_WIDTH)
@@ -107,13 +109,11 @@ def learn():
                     }
                 )
             data['pageStudyRecordDTOList'] = pageStudyRecordDTOList
-            while 1:
-                if requests.post('https://api.ulearning.cn/yws/api/personal/sync?courseType=4&platform=PC',
-                                 headers=HEADERS,
-                                 data=encryption(data)).text == '1':
-                    break
+            requests.post('https://api.ulearning.cn/yws/api/personal/sync?courseType=4&platform=PC',
+                          headers=HEADERS,
+                          data=encryption(data)
+                          )
 
-            time.sleep(5)
     print('已全部完成')
     print('-' * WINDOWS_WIDTH)
 
