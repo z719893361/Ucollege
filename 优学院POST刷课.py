@@ -1,4 +1,4 @@
-# 作者 by 夕迹
+# by 夕迹
 # QQ: 719893361
 
 import random
