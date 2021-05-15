@@ -36,13 +36,18 @@ def login():
     while 1:
         username = input('请输入用户名: ')
         password = input('请输入密码: ')
-        reg = requests.post('https://www.ulearning.cn/umooc/user/login.do', data={
-            'name': username,
-            'passwd': password
-        }, allow_redirects=False)
-        if 'token' in reg.cookies:
-            HEADERS['Authorization'] = reg.cookies.get('token')
-            HEADERS['UA-AUTHORIZATION'] = reg.cookies.get('token')
+        response = requests.post(
+            'https://www.ulearning.cn/umooc/user/login.do',
+            data={
+                'name': username,
+                'passwd': password
+            },
+            allow_redirects=False
+        )
+
+        if 'token' in response.cookies:
+            HEADERS['Authorization'] = response.cookies.get('token')
+            HEADERS['UA-AUTHORIZATION'] = response.cookies.get('token')
             print('登录成功')
             return
         else:
@@ -59,44 +64,58 @@ def encryption(data):
 
 
 def learn():
-    res = requests.get(
+    # 获取全部课程信息
+    response = requests.get(
         'https://courseapi.ulearning.cn/courses/students?keyword=&publishStatus=1&type=1&pn=1&ps=15&lang=zh',
-        headers=HEADERS)
-    courseList = []
+        headers=HEADERS
+    )
+
+    # 获取课程id列表,打印课程信息
+    course_list = response.json()['courseList']
     print('-' * WINDOWS_WIDTH)
-    for i, course in enumerate(res.json().get('courseList')):
-        courseList.append(course.get('classId'))
-        print('%d. %s' % (i, course.get('name')))
+    for index, course in enumerate(course_list):
+        print('%d. %s' % (index, course.get('name')))
     print('-' * WINDOWS_WIDTH)
-    data = {
-        "itemid": None,
-        "autoSave": 1,
-        "version": None,
-        "withoutOld": None,
-        "complete": 1,
-        "studyStartTime": int(time.time()),
-        "userName": None,
-        "score": 100,
-        "pageStudyRecordDTOList": []
-    }
+    course = course_list[int(input('请输入需要刷课的序号: '))]
+
+    # 获取courseID
+    response = requests.get(
+        f'https://courseapi.ulearning.cn/textbook/student/{course["id"]}/list?lang=zh',
+        headers=HEADERS
+    ).json()
+
+    # 获取课程内容信息
     reg = requests.get(
-        'https://api.ulearning.cn/course/stu/23138/directory?classId=%d' % courseList[int(input('请输入需要刷课的序号: '))],
-        headers=HEADERS)
-    # 循环遍历JSON内容
-    for i, chapter in enumerate(reg.json()['chapters']):
+        f'https://api.ulearning.cn/course/stu/{response[0]["courseId"]}/directory?classId={course["classId"]}',
+        headers=HEADERS
+    )
+
+    # 循环遍历课程内容
+    for index, chapter in enumerate(reg.json()['chapters']):
+        data = {
+            "itemid": None,
+            "autoSave": 1,
+            "version": None,
+            "withoutOld": None,
+            "complete": 1,
+            "studyStartTime": int(time.time()),
+            "userName": None,
+            "score": 100,
+            "page_study_record_dto_list": []
+        }
         print('-' * WINDOWS_WIDTH)
         # 打印专题标题
         print('专题ID: %s\t%s' % (chapter.get('nodeid'), chapter.get('nodetitle')))
-        pageStudyRecordDTOList = []
+        page_study_record_dto_list = []
         for item in chapter.get('items'):
             print('\t章节ID: %s\t%s' % (item.get('itemid'), item.get('title')))
             data['itemid'] = item.get('itemid')
-            for coursepage in item.get('coursepages'):
+            for course_page in item.get('coursepages'):
                 # 打印文章标题
-                print('\t\t文章ID: %s\t%s' % (coursepage.get('relationid'), coursepage.get('title')))
-                pageStudyRecordDTOList.append(
+                print('\t\t文章ID: %s\t%s' % (course_page.get('relationid'), course_page.get('title')))
+                page_study_record_dto_list.append(
                     {
-                        "pageid": coursepage.get('relationid'),
+                        "pageid": course_page.get('relationid'),
                         "complete": 1,
                         "studyTime": random.randint(400, 800),
                         "score": 100,
@@ -107,7 +126,7 @@ def learn():
                         "speaks": []
                     }
                 )
-            data['pageStudyRecordDTOList'] = pageStudyRecordDTOList
+            data['page_study_record_dto_list'] = page_study_record_dto_list
             requests.post('https://api.ulearning.cn/yws/api/personal/sync?courseType=4&platform=PC',
                           headers=HEADERS,
                           data=encryption(data)
