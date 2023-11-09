@@ -1,3 +1,8 @@
-优学院POST极速刷课，只需要几秒
+优学院POST极速刷课，只需要几秒。
 
-技术太菜不会用github, 简单备份一下。有需要的拿走
+'''
+# 安装依赖
+pip install pycryptodome requests
+'''
+
+安装依赖后直接运行
