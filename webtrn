@@ -1,0 +1,254 @@
+import base64
+import json
+import re
+from abc import ABC, abstractmethod
+from hashlib import md5
+
+from cryptography.hazmat.primitives import padding
+from lxml import etree
+from datetime import datetime
+
+import requests
+
+
+class State(ABC):
+    """
+    抽象类
+    """
+
+    @abstractmethod
+    def handle(self, context):
+        pass
+
+
+class StateMachine:
+    """
+    状态机
+    """
+
+    def __init__(self):
+        self.current_state = LoginState()
+
+    def transition_to(self, new_state):
+        self.current_state = new_state
+
+    def execute(self):
+        self.current_state.handle(self)
+
+
+import random
+import time
+from datetime import datetime
+
+from cryptography.hazmat.primitives.ciphers import Cipher, modes, algorithms
+from cryptography.hazmat.backends import default_backend
+
+
+def encrypt_data(data):
+    key = b'learnspaceaes123'
+    cipher = Cipher(algorithms.AES(key), modes.ECB(), backend=default_backend())
+    encryptor = cipher.encryptor()
+    # 使用PKCS7填充方式进行填充
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(data.encode('utf-8')) + padder.finalize()
+    encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
+    return base64.b64encode(encrypted_data).decode('utf8')
+
+
+def format_str(c, a):
+    l = ""
+    k = len(str(c))
+    if k > 0:
+        if k + 2 > a:
+            return str(c)
+        else:
+            g = a - k - 2
+            h = 1
+            for e in range(g):
+                h = h * 10
+            b = random.randint(0, h - 1)
+            f = len(str(b))
+            if f < g:
+                for d in range(f, g):
+                    b = b * 10
+            if k >= 10:
+                l += str(k)
+            else:
+                l += "0" + str(k)
+            l += str(c) + str(b)
+    else:
+        return str(c)
+    return l
+
+
+def time_to_seconds(time_str):
+    # 将时间字符串解析为 datetime 对象
+    time_object = datetime.strptime(time_str, "%H:%M:%S")
+    # 计算总秒数
+    total_seconds = (time_object.hour * 3600) + (time_object.minute * 60) + time_object.second
+
+    return total_seconds
+
+
+def get_params(r, time_now):
+    s = {
+        'courseId': r['courseId'],
+        'itemId': r['itemId'],
+        'time1': format_str(round(time_now * 1000), 20),
+        'time2': format_str(int(r['startTime']), 20),
+        'time3': format_str(time_to_seconds(r['videoTotalTime']), 20),
+        'time4': format_str(int(r['endTime']), 20),
+        'videoIndex': 0,
+        'time5': format_str(r['studyTimeLong'], 20),
+        'terminalType': 0,
+        'recordType': r['recordType'],
+    }
+    return s
+
+
+class LoginState(State):
+    def handle(self, context):
+        username = input('请输入账号：')
+        password = input('请输入密码：')
+        sessions = requests.session()
+        response = sessions.post(
+            url='https://hn.webtrn.cn/center/user/hnNewlogin.do',
+            data={
+                'auto': False,
+                'info': 1,
+                'siteCode': 'hnsrst',
+                'siteType': 'typx',
+                'ip': 1,
+                'json': 'json',
+                'allRole': 'allRole',
+                'loginId': username,
+                'password': md5(password.encode('utf8')).hexdigest(),
+                'pwd': password,
+                'portal': 'index'
+            }
+        )
+        data = response.json()
+        if data['code'] == 200:
+            context.transition_to(GetClassState(sessions))
+        else:
+            print(data['tip'])
+
+
+class GetClassState(State):
+    def __init__(self, client: requests.Session):
+        self.client = client
+
+    def handle(self, context):
+        data = self.client.post(
+            url='https://hn.webtrn.cn/u/recommendCourse/queryMyCourse.json',
+            data={
+                'page.searchItem.curPage': 1,
+                'page.searchItem.pageSize': 12,
+                'page.searchItem.totalCount': 24,
+                'page.searchItem.oneTypeId': 'all',
+                'page.searchItem.twoTypeId': 'all'
+            }
+        ).json()
+        for course in data['courseList']:
+            if course['finishDate'] == '':
+                print(course)
+                self.process_course(course['id'])
+        print('学习完成')
+        context.transition_to(LoginState())
+
+    def process_course(self, course_id: str):
+        # 不知道是啥
+        self.client.post(
+            url='https://hn.webtrn.cn/u/study/saveUserToSpaceRecord.json',
+            data={
+                'entity.courseId': course_id,
+            }
+        )
+        # 更新Cookie
+        self.client.get(
+            url=f'https://hnssydw-kfkc.webtrn.cn/learnspace/sign/signLearn.action',
+            params={
+                'template': 'blue',
+                'courseId': course_id,
+                'loginType': True,
+                'loginId': self.client.get('loginId'),
+                'sign': 0,
+                'siteCode': 'hnsrst',
+                'domain': 'hn.webtrn.cn'
+            }
+        )
+        # 获取视频ID
+        response = self.client.post(
+            url='https://hnssydw-kfkc.webtrn.cn/learnspace/learn/learn/templateeight/courseware_index.action',
+            params={
+                'params.courseId': course_id + '___'
+            }
+        )
+        items = re.findall('<div id="s_point_(.*?)" itemType="video"', response.text)
+        for item in items:
+            self.process_item(course_id, item)
+
+    def process_item(self, course_id, item_id):
+        # 获取视频信息
+        response = self.client.get(
+            url='https://hnssydw-kfkc.webtrn.cn/learnspace/learn/learn/templateeight/content_video.action',
+            params={
+                'params.courseId': course_id + '___',
+                'params.itemId': item_id,
+                'params.templateStyleType': 0,
+                'params.parentId': item_id
+            }
+        )
+        selector = etree.HTML(response.text)
+        # 视频时长
+        video_time_format = selector.xpath('normalize-space(//input[@id="videoTime"]/@value)')
+        # 资源ID
+        response = self.client.get(
+            url='https://hnssydw-kfkc.webtrn.cn/learnspace/learn/learn/templateeight/index.action',
+            params={
+                'params.courseId': course_id + '___',
+                'params.templateType': 8,
+                'params.templateStyleType': 0,
+                'params.template': 'templateeight',
+                'params.tplRoot': 'learn'
+            }
+        )
+        regex = re.search('var limitId = "(.*?)";', response.text)
+        limit_id = regex.group(1)
+        self.studying(course_id, item_id, video_time_format, limit_id)
+
+    def studying(self, course_id, item_id, video_time_format, limit_id):
+        video_time_datetime = datetime.strptime(video_time_format, '%H:%M:%S')
+        total_seconds = video_time_datetime.hour * 3600 + video_time_datetime.minute * 60 + video_time_datetime.second
+        for start_time, end_time in [(i, i + 120) for i in range(0, total_seconds, 120)]:
+            study_time_long = float(end_time - start_time)
+            data = {
+                "playComplete": True,
+                "async": False,
+                "courseId": course_id + "___",
+                "itemId": item_id,
+                "position": end_time,
+                "videoTotalTime": video_time_format,
+                "interval": False,
+                "startTime": start_time + random.random(),
+                "endTime": end_time + random.random(),
+                "recordType": "playComplete",
+                'studyTimeLong': study_time_long
+            }
+            study_record_json = get_params(data, 0)
+            study_record_str = json.dumps(study_record_json, separators=(',', ':'))
+            study_record_encrypt = encrypt_data(study_record_str)
+            response = self.client.post(
+                url='https://hnssydw-kfkc.webtrn.cn/learnspace/course/study/learningTime_saveVideoLearnDetailRecord.action',
+                data={
+                    'studyRecord': study_record_encrypt,
+                    'limitId': limit_id
+                }
+            )
+            print(response.text)
+            time.sleep(41)
+
+
+machine = StateMachine()
+while True:
+    machine.execute()
