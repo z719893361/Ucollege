@@ -1,6 +1,3 @@
-# by 夕迹
-# QQ: 719893361
-
 import base64
 import json
 import random
