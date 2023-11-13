@@ -218,8 +218,7 @@ class GetClassState(State):
         self.studying(course_id, item_id, video_time_format, limit_id)
 
     def studying(self, course_id, item_id, video_time_format, limit_id):
-        video_time_datetime = datetime.strptime(video_time_format, '%H:%M:%S')
-        total_seconds = video_time_datetime.hour * 3600 + video_time_datetime.minute * 60 + video_time_datetime.second
+        total_seconds = time_to_seconds(video_time_format)
         for start_time, end_time in [(i, i + 120) for i in range(0, total_seconds, 120)]:
             study_time_long = float(end_time - start_time)
             data = {
@@ -249,6 +248,11 @@ class GetClassState(State):
             time.sleep(41)
 
 
-machine = StateMachine()
-while True:
-    machine.execute()
+def task():
+    machine = StateMachine()
+    while True:
+        machine.execute()
+
+
+if __name__ == '__main__':
+    task()
